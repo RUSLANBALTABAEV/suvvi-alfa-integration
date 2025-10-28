@@ -1,14 +1,17 @@
 {
   "name": "suvvi-alfa-integration",
   "version": "1.0.0",
-  "description": "",
+  "description": "Suvvi ↔️ Alfa CRM Integration Server",
   "main": "index.js",
+  "type": "module",
   "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
+  "keywords": ["suvvi", "alfa-crm", "integration", "webhook"],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
     "axios": "^1.12.2",
     "dotenv": "^17.2.3",
