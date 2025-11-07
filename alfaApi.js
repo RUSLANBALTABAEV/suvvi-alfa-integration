@@ -131,6 +131,102 @@ export async function getStudent(studentId) {
   }
 }
 
+// ✅ НОВАЯ ФУНКЦИЯ: Получение неоплаченных студентов
+export async function getUnpaidStudents() {
+  try {
+    // Получаем студентов со статусом "registered" (записаны, но не оплатили)
+    const res = await alfa.get(`/students?status=registered`);
+    const students = res.data;
+
+    // Фильтруем только тех, у кого нет оплаты или оплата не подтверждена
+    const unpaid = [];
+    
+    for (const student of students) {
+      try {
+        const paymentsRes = await alfa.get(`/students/${student.id}/payments`);
+        const payments = paymentsRes.data || [];
+        
+        // Проверяем, есть ли подтвержденные оплаты
+        const hasPaidPayment = payments.some(p => p.paid === true);
+        
+        if (!hasPaidPayment) {
+          // Получаем информацию о группе студента
+          const groupRes = await alfa.get(`/students/${student.id}/group`);
+          const group = groupRes.data;
+          
+          unpaid.push({
+            ...student,
+            group_id: group?.id,
+            group_start_date: group?.start_date,
+            amount: group?.course_price || 0,
+          });
+        }
+      } catch (error) {
+        console.error(`⚠️ Ошибка проверки оплат студента ${student.id}:`, error.message);
+      }
+    }
+
+    console.log(`💰 Найдено неоплаченных студентов: ${unpaid.length}`);
+    return unpaid;
+  } catch (error) {
+    console.error("❌ Ошибка получения неоплаченных студентов:", error.message);
+    return [];
+  }
+}
+
+// ✅ НОВАЯ ФУНКЦИЯ: Получение статистики за день
+export async function getDailyStats() {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayISO = today.toISOString();
+
+    // Получаем новые заявки за сегодня
+    const newLeadsRes = await alfa.get(`/students?created_at_from=${todayISO}&status=new`);
+    const newLeads = newLeadsRes.data?.length || 0;
+
+    // Получаем оплаты за сегодня
+    const paymentsRes = await alfa.get(`/payments?date_from=${todayISO}`);
+    const payments = paymentsRes.data || [];
+    const paidPayments = payments.filter(p => p.paid === true);
+    const totalAmount = paidPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+
+    // Получаем активных студентов (со статусом "active" или "paid")
+    const activeRes = await alfa.get(`/students?status=active,paid`);
+    const activeStudents = activeRes.data?.length || 0;
+
+    // Получаем открытые группы
+    const openGroupsRes = await alfa.get(`/groups?status=open`);
+    const openGroups = openGroupsRes.data || [];
+    
+    // Считаем заполненные группы (8 человек)
+    const fullGroups = openGroups.filter(g => (g.members_count || 0) >= 8).length;
+
+    console.log(`📊 Статистика собрана: заявок ${newLeads}, оплат ${paidPayments.length}`);
+
+    return {
+      new_leads: newLeads,
+      payments: paidPayments.length,
+      total_amount: totalAmount,
+      active_students: activeStudents,
+      open_groups: openGroups.length,
+      full_groups: fullGroups,
+    };
+  } catch (error) {
+    console.error("❌ Ошибка получения статистики:", error.message);
+    
+    // Возвращаем нулевую статистику в случае ошибки
+    return {
+      new_leads: 0,
+      payments: 0,
+      total_amount: 0,
+      active_students: 0,
+      open_groups: 0,
+      full_groups: 0,
+    };
+  }
+}
+
 // Обработка вебхука от Alfa CRM
 export async function handleAlfaWebhook(req, res) {
   try {
